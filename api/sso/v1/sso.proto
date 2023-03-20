@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package api.sso.v1;
+
+import "google/api/annotations.proto";
+import "errors/errors.proto";
+
+option go_package = "sso/api/sso/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.sso.v1";
+
+service SSO {
+
+}

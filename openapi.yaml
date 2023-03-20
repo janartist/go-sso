@@ -1,0 +1,76 @@
+# Generated with protoc-gen-openapi
+# https://github.com/google/gnostic/tree/master/cmd/protoc-gen-openapi
+
+openapi: 3.0.3
+info:
+    title: Auth API
+    version: 0.0.1
+paths:
+    auth/gen-token:
+        post:
+            tags:
+                - Auth
+            operationId: Auth_GenToken
+            parameters:
+                - name: httpRequest.fullyDecodeReservedExpansion
+                  in: query
+                  description: When set to true, URL path parameters will be fully URI-decoded except in cases of single segment matches in reserved expansion, where "%2F" will be left encoded. The default behavior is to not decode RFC 6570 reserved characters in multi segment matches.
+                  schema:
+                    type: boolean
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.auth.v1.GenTokenRequest_GenTokenBody'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.auth.v1.GenTokenReply'
+    auth/verify:
+        post:
+            tags:
+                - Auth
+            operationId: Auth_Verify
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.auth.v1.VerifyRequest_VerifyBody'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.auth.v1.VerifyReply'
+components:
+    schemas:
+        api.auth.v1.GenTokenReply:
+            type: object
+            properties:
+                ID:
+                    type: integer
+                    format: uint64
+        api.auth.v1.GenTokenRequest_GenTokenBody:
+            type: object
+            properties:
+                Title:
+                    type: string
+        api.auth.v1.VerifyReply:
+            type: object
+            properties:
+                ID:
+                    type: integer
+                    format: uint64
+        api.auth.v1.VerifyRequest_VerifyBody:
+            type: object
+            properties:
+                Title:
+                    type: string
+tags:
+    - name: Auth
