@@ -8,9 +8,9 @@ server:
 data:
   database:
     driver: mysql
-    source: root:kjnnyzqq@tcp(127.0.0.1:3306)/test
+    source: root:123456@tcp(127.0.0.1:3306)/test
   redis:
-    addr: root:kjnnyzqq@127.0.0.1:6379/0
+    addr: root:123456@127.0.0.1:6379/0
     db: 0
     read_timeout: 0.2s
     write_timeout: 0.2s
@@ -18,4 +18,4 @@ data:
 casbin:
   gorm:
     prefix: casbin_
-    table: auth
+    table: auth_rule
