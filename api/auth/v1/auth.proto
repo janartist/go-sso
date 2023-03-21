@@ -10,15 +10,9 @@ option java_multiple_files = true;
 option java_package = "api.auth.v1";
 
 service Auth {
-	rpc GenToken (GenTokenRequest) returns (GenTokenReply) {
-			option(google.api.http) = {
-					post : "/auth/gen-token"
-					body: "gen_token_body"
-			};
-	};
 	rpc Verify (VerifyRequest) returns (VerifyReply) {
 		option(google.api.http) = {
-			post : "/auth/verify"
+			post : "/auth/verify",
 			body: "verify_body"
 		};
 	};
@@ -34,22 +28,13 @@ enum ErrorReason {
 	CONTENT_MISSING = 1 [(errors.code) = 400];
 }
 
-message GenTokenRequest {
-	message GenTokenBody {
-		string Title = 1;
-	}
-	GenTokenBody gen_token_body = 1;
-}
-message GenTokenReply {
-	uint64 ID = 1;
-}
-
 message VerifyRequest {
 	message VerifyBody {
-		string Title = 1;
+		string token = 1;
 	}
 	VerifyBody verify_body = 1;
 }
 message VerifyReply {
-	uint64 ID = 1;
+	string ID = 1;
+	string Subject = 2;
 }

@@ -19,40 +19,15 @@ var _ = binding.EncodeURL
 
 const _ = http.SupportPackageIsVersion1
 
-const OperationAuthGenToken = "/api.auth.v1.Auth/GenToken"
 const OperationAuthVerify = "/api.auth.v1.Auth/Verify"
 
 type AuthHTTPServer interface {
-	GenToken(context.Context, *GenTokenRequest) (*GenTokenReply, error)
 	Verify(context.Context, *VerifyRequest) (*VerifyReply, error)
 }
 
 func RegisterAuthHTTPServer(s *http.Server, srv AuthHTTPServer) {
 	r := s.Route("/")
-	r.POST("/auth/gen-token", _Auth_GenToken0_HTTP_Handler(srv))
 	r.POST("/auth/verify", _Auth_Verify0_HTTP_Handler(srv))
-}
-
-func _Auth_GenToken0_HTTP_Handler(srv AuthHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in GenTokenRequest
-		if err := ctx.Bind(&in.GenTokenBody); err != nil {
-			return err
-		}
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationAuthGenToken)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GenToken(ctx, req.(*GenTokenRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*GenTokenReply)
-		return ctx.Result(200, reply)
-	}
 }
 
 func _Auth_Verify0_HTTP_Handler(srv AuthHTTPServer) func(ctx http.Context) error {
@@ -78,7 +53,6 @@ func _Auth_Verify0_HTTP_Handler(srv AuthHTTPServer) func(ctx http.Context) error
 }
 
 type AuthHTTPClient interface {
-	GenToken(ctx context.Context, req *GenTokenRequest, opts ...http.CallOption) (rsp *GenTokenReply, err error)
 	Verify(ctx context.Context, req *VerifyRequest, opts ...http.CallOption) (rsp *VerifyReply, err error)
 }
 
@@ -88,19 +62,6 @@ type AuthHTTPClientImpl struct {
 
 func NewAuthHTTPClient(client *http.Client) AuthHTTPClient {
 	return &AuthHTTPClientImpl{client}
-}
-
-func (c *AuthHTTPClientImpl) GenToken(ctx context.Context, in *GenTokenRequest, opts ...http.CallOption) (*GenTokenReply, error) {
-	var out GenTokenReply
-	pattern := "/auth/gen-token"
-	path := binding.EncodeURL(pattern, in, false)
-	opts = append(opts, http.Operation(OperationAuthGenToken))
-	opts = append(opts, http.PathTemplate(pattern))
-	err := c.cc.Invoke(ctx, "POST", path, in.GenTokenBody, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, err
 }
 
 func (c *AuthHTTPClientImpl) Verify(ctx context.Context, in *VerifyRequest, opts ...http.CallOption) (*VerifyReply, error) {

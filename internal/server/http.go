@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/go-kratos/kratos/v2/middleware/logging"
 	v1 "sso/api/auth/v1"
 	"sso/internal/conf"
 	"sso/internal/service"
@@ -15,6 +16,7 @@ func NewHTTPServer(c *conf.Server, auth *service.AuthService, logger log.Logger)
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
+			logging.Server(logger),
 		),
 	}
 	if c.Http.Network != "" {
@@ -27,6 +29,12 @@ func NewHTTPServer(c *conf.Server, auth *service.AuthService, logger log.Logger)
 		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
 	}
 	srv := http.NewServer(opts...)
+
+	r := srv.Route("/auth")
+	r.GET("/code", auth.Authorize)
+	r.GET("/token", auth.Token)
+
 	v1.RegisterAuthHTTPServer(srv, auth)
+
 	return srv
 }

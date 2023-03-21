@@ -19,15 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Auth_GenToken_FullMethodName = "/api.auth.v1.Auth/GenToken"
-	Auth_Verify_FullMethodName   = "/api.auth.v1.Auth/Verify"
+	Auth_Verify_FullMethodName = "/api.auth.v1.Auth/Verify"
 )
 
 // AuthClient is the client API for Auth service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuthClient interface {
-	GenToken(ctx context.Context, in *GenTokenRequest, opts ...grpc.CallOption) (*GenTokenReply, error)
 	Verify(ctx context.Context, in *VerifyRequest, opts ...grpc.CallOption) (*VerifyReply, error)
 }
 
@@ -37,15 +35,6 @@ type authClient struct {
 
 func NewAuthClient(cc grpc.ClientConnInterface) AuthClient {
 	return &authClient{cc}
-}
-
-func (c *authClient) GenToken(ctx context.Context, in *GenTokenRequest, opts ...grpc.CallOption) (*GenTokenReply, error) {
-	out := new(GenTokenReply)
-	err := c.cc.Invoke(ctx, Auth_GenToken_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *authClient) Verify(ctx context.Context, in *VerifyRequest, opts ...grpc.CallOption) (*VerifyReply, error) {
@@ -61,7 +50,6 @@ func (c *authClient) Verify(ctx context.Context, in *VerifyRequest, opts ...grpc
 // All implementations must embed UnimplementedAuthServer
 // for forward compatibility
 type AuthServer interface {
-	GenToken(context.Context, *GenTokenRequest) (*GenTokenReply, error)
 	Verify(context.Context, *VerifyRequest) (*VerifyReply, error)
 	mustEmbedUnimplementedAuthServer()
 }
@@ -70,9 +58,6 @@ type AuthServer interface {
 type UnimplementedAuthServer struct {
 }
 
-func (UnimplementedAuthServer) GenToken(context.Context, *GenTokenRequest) (*GenTokenReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GenToken not implemented")
-}
 func (UnimplementedAuthServer) Verify(context.Context, *VerifyRequest) (*VerifyReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Verify not implemented")
 }
@@ -87,24 +72,6 @@ type UnsafeAuthServer interface {
 
 func RegisterAuthServer(s grpc.ServiceRegistrar, srv AuthServer) {
 	s.RegisterService(&Auth_ServiceDesc, srv)
-}
-
-func _Auth_GenToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GenTokenRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServer).GenToken(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Auth_GenToken_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).GenToken(ctx, req.(*GenTokenRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _Auth_Verify_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -132,10 +99,6 @@ var Auth_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "api.auth.v1.Auth",
 	HandlerType: (*AuthServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "GenToken",
-			Handler:    _Auth_GenToken_Handler,
-		},
 		{
 			MethodName: "Verify",
 			Handler:    _Auth_Verify_Handler,

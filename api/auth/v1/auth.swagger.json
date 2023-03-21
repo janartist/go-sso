@@ -16,38 +16,6 @@
     "application/json"
   ],
   "paths": {
-    "/auth/gen-token": {
-      "post": {
-        "operationId": "Auth_GenToken",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1GenTokenReply"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "genTokenBody",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/GenTokenRequestGenTokenBody"
-            }
-          }
-        ],
-        "tags": [
-          "Auth"
-        ]
-      }
-    },
     "/auth/verify": {
       "post": {
         "operationId": "Auth_Verify",
@@ -82,18 +50,10 @@
     }
   },
   "definitions": {
-    "GenTokenRequestGenTokenBody": {
-      "type": "object",
-      "properties": {
-        "Title": {
-          "type": "string"
-        }
-      }
-    },
     "VerifyRequestVerifyBody": {
       "type": "object",
       "properties": {
-        "Title": {
+        "token": {
           "type": "string"
         }
       }
@@ -126,21 +86,14 @@
         }
       }
     },
-    "v1GenTokenReply": {
-      "type": "object",
-      "properties": {
-        "ID": {
-          "type": "string",
-          "format": "uint64"
-        }
-      }
-    },
     "v1VerifyReply": {
       "type": "object",
       "properties": {
         "ID": {
-          "type": "string",
-          "format": "uint64"
+          "type": "string"
+        },
+        "Subject": {
+          "type": "string"
         }
       }
     }

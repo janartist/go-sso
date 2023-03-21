@@ -81,12 +81,12 @@ func (a *AuthClientStore) GetByID(ctx context.Context, id string) (oauth2.Client
 		return nil, nil
 	}
 	var tenant biz.Tenant
-	err := a.db.WithContext(ctx).Limit(1).Find(tenant, "id = ?", id).Error
+	err := a.db.WithContext(ctx).Limit(1).Find(&tenant, "id = ?", id).Error
 
 	if err != nil {
 		return nil, err
 	}
-	return &models.Client{ID: tenant.ID, Secret: tenant.Secret, Domain: tenant.Domain, UserID: tenant.UserID}, err
+	return &models.Client{ID: string(tenant.ID), Secret: tenant.Secret, Domain: tenant.Domain, UserID: tenant.UserID}, err
 }
 func (a *AuthClientStore) VerifyPassword(secret string) bool {
 	return a.Secret == secret

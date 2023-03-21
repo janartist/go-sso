@@ -2,11 +2,12 @@ package biz
 
 import (
 	"context"
-	"github.com/go-kratos/kratos/v2/log"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/generates"
@@ -29,7 +30,7 @@ type User struct {
 }
 
 type Tenant struct {
-	ID     string `gorm:"type:varchar(20);primarykey"`
+	ID     uint64 `gorm:"type:varchar(20);primarykey"`
 	Secret string `gorm:"type:varchar(50);not null"`
 	Domain string `gorm:"type:varchar(50);not null"`
 	UserID string `gorm:"type:varchar(20);not null"`
@@ -49,18 +50,23 @@ type Oauth2Server struct {
 func NewOauth2Server(redisClient *redis.Client, clientStore oauth2.ClientStore, auth AuthRepo, logger log.Logger) *Oauth2Server {
 	manager := manage.NewDefaultManager()
 	// token 存储
-	manager.MustTokenStorage(oredis.NewRedisStoreWithCli(redisClient), nil)
+	manager.MapTokenStorage(oredis.NewRedisStoreWithCli(redisClient))
 	// client 存储
 	manager.MapClientStorage(clientStore)
 	//token算法
 	manager.MapAccessGenerate(generates.NewJWTAccessGenerate("", []byte("00000000"), jwt.SigningMethodHS512))
-	//密码生成token规则
+	//密码 code 生成token规则
 	manager.SetPasswordTokenCfg(&manage.Config{AccessTokenExp: 2 * time.Hour, IsGenerateRefresh: false})
+	manager.SetAuthorizeCodeTokenCfg(&manage.Config{AccessTokenExp: 2 * time.Hour, RefreshTokenExp: time.Hour, IsGenerateRefresh: true})
+	manager.SetRefreshTokenCfg(&manage.RefreshingConfig{
+		AccessTokenExp:  2 * time.Hour,
+		RefreshTokenExp: time.Hour,
+	})
 
 	srv := server.NewDefaultServer(manager)
 	srv.SetAllowGetAccessRequest(true)
-	srv.SetClientInfoHandler(server.ClientBasicHandler)
-	srv.SetAllowedGrantType(oauth2.PasswordCredentials)
+	srv.SetClientInfoHandler(server.ClientFormHandler)
+	srv.SetAllowedGrantType(oauth2.AuthorizationCode, oauth2.PasswordCredentials, oauth2.Refreshing)
 	srv.SetInternalErrorHandler(func(err error) (re *errors.Response) {
 		log.Error("Internal Error:", err.Error())
 		return
@@ -70,11 +76,20 @@ func NewOauth2Server(redisClient *redis.Client, clientStore oauth2.ClientStore, 
 		re.ErrorCode = 401
 		log.Error("Response Error:", re.Error.Error(), re.Description)
 	})
+	// 不同客户端不同授权模式
+	srv.SetClientAuthorizedHandler(func(clientID string, grant oauth2.GrantType) (allowed bool, err error) {
+		allowed = true
+		return
+	})
 	srv.SetClientScopeHandler(func(tgr *oauth2.TokenGenerateRequest) (allowed bool, err error) {
 		allowed = true
 		return
 	})
-	//通过账号密码返回用户ID
+	//
+	srv.SetUserAuthorizationHandler(func(w http.ResponseWriter, r *http.Request) (userID string, err error) {
+		return "11s", nil
+	})
+	// 通过账号密码返回用户ID
 	srv.SetPasswordAuthorizationHandler(func(ctx context.Context, clientID, username, password string) (string, error) {
 		var user User
 		err := auth.Auth(ctx, &user, clientID, username, password)
@@ -90,18 +105,32 @@ func NewOauth2Server(redisClient *redis.Client, clientStore oauth2.ClientStore, 
 	}
 }
 
+// HandleAuthorizeRequest code request handling
+func (o *Oauth2Server) HandleAuthorizeRequestDefault(w http.ResponseWriter, r *http.Request) error {
+	return o.server.HandleAuthorizeRequest(w, r)
+}
+
 // HandleTokenRequest token request handling
-func (o *Oauth2Server) HandleTokenRequest(ctx context.Context, request *http.Request) (map[string]interface{}, error) {
-	gt, tgr, err := o.server.ValidationTokenRequest(request)
+func (o *Oauth2Server) HandleTokenRequestDefault(w http.ResponseWriter, r *http.Request) error {
+	return o.server.HandleTokenRequest(w, r)
+}
+
+// HandleTokenParse token parse handling
+func (o *Oauth2Server) HandleTokenParse(ctx context.Context, access string) (*generates.JWTAccessClaims, error) {
+	// Parse and verify jwt access token
+	token, err := jwt.ParseWithClaims(access, &generates.JWTAccessClaims{}, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("parse error")
+		}
+		return []byte("00000000"), nil
+	})
 	if err != nil {
-		_, _, _ = o.server.GetErrorData(err)
 		return nil, err
 	}
 
-	ti, err := o.server.GetAccessToken(ctx, gt, tgr)
-	if err != nil {
-		_, _, _ = o.server.GetErrorData(err)
-		return nil, nil
+	claims, ok := token.Claims.(*generates.JWTAccessClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token")
 	}
-	return o.server.GetTokenData(ti), nil
+	return claims, nil
 }

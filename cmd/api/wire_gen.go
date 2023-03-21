@@ -24,14 +24,11 @@ import (
 
 // wireApp init kratos application.
 func wireApp(confServer *conf.Server, confData *conf.Data, casbin *conf.Casbin, logger log.Logger) (*kratos.App, func(), error) {
-	db, err := data.NewDatabase(confData)
+	client, err := data.NewRedis(confData)
 	if err != nil {
 		return nil, nil, err
 	}
-	model := biz.RABCModelWithIpMatch()
-	bizCasbin := biz.NewCasbinFromGorm(db, model, casbin)
-	enforcer := biz.NewEnforcer(bizCasbin)
-	client, err := data.NewRedis(confData)
+	db, err := data.NewDatabase(confData)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -42,7 +39,7 @@ func wireApp(confServer *conf.Server, confData *conf.Data, casbin *conf.Casbin, 
 	}
 	authRepo := data.NewAuthRepo(dataData)
 	oauth2Server := biz.NewOauth2Server(client, clientStore, authRepo, logger)
-	authService := service.NewAuthService(enforcer, oauth2Server)
+	authService := service.NewAuthService(oauth2Server)
 	grpcServer := server.NewGRPCServer(confServer, authService, logger)
 	httpServer := server.NewHTTPServer(confServer, authService, logger)
 	app := newApp(logger, grpcServer, httpServer)
