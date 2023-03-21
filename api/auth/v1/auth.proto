@@ -12,13 +12,13 @@ option java_package = "api.auth.v1";
 service Auth {
 	rpc GenToken (GenTokenRequest) returns (GenTokenReply) {
 			option(google.api.http) = {
-					post : "auth/gen-token"
+					post : "/auth/gen-token"
 					body: "gen_token_body"
 			};
 	};
 	rpc Verify (VerifyRequest) returns (VerifyReply) {
 		option(google.api.http) = {
-			post : "auth/verify"
+			post : "/auth/verify"
 			body: "verify_body"
 		};
 	};

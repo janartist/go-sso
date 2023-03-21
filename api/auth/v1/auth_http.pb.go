@@ -29,8 +29,8 @@ type AuthHTTPServer interface {
 
 func RegisterAuthHTTPServer(s *http.Server, srv AuthHTTPServer) {
 	r := s.Route("/")
-	r.POST("auth/gen-token", _Auth_GenToken0_HTTP_Handler(srv))
-	r.POST("auth/verify", _Auth_Verify0_HTTP_Handler(srv))
+	r.POST("/auth/gen-token", _Auth_GenToken0_HTTP_Handler(srv))
+	r.POST("/auth/verify", _Auth_Verify0_HTTP_Handler(srv))
 }
 
 func _Auth_GenToken0_HTTP_Handler(srv AuthHTTPServer) func(ctx http.Context) error {
@@ -92,7 +92,7 @@ func NewAuthHTTPClient(client *http.Client) AuthHTTPClient {
 
 func (c *AuthHTTPClientImpl) GenToken(ctx context.Context, in *GenTokenRequest, opts ...http.CallOption) (*GenTokenReply, error) {
 	var out GenTokenReply
-	pattern := "auth/gen-token"
+	pattern := "/auth/gen-token"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationAuthGenToken))
 	opts = append(opts, http.PathTemplate(pattern))
@@ -105,7 +105,7 @@ func (c *AuthHTTPClientImpl) GenToken(ctx context.Context, in *GenTokenRequest, 
 
 func (c *AuthHTTPClientImpl) Verify(ctx context.Context, in *VerifyRequest, opts ...http.CallOption) (*VerifyReply, error) {
 	var out VerifyReply
-	pattern := "auth/verify"
+	pattern := "/auth/verify"
 	path := binding.EncodeURL(pattern, in, false)
 	opts = append(opts, http.Operation(OperationAuthVerify))
 	opts = append(opts, http.PathTemplate(pattern))

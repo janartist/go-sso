@@ -84,7 +84,7 @@ func NewDatabase(c *conf.Data) (*gorm.DB, error) {
 }
 
 func NewRedis(c *conf.Data) (client *redis.Client, err error) {
-	opt, err := redis.ParseURL(fmt.Sprintf("redis://:%s", c.GetRedis().GetAddr()))
+	opt, err := redis.ParseURL(fmt.Sprintf("redis://%s", c.GetRedis().GetAddr()))
 	if err != nil {
 		return
 	}

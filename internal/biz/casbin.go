@@ -35,7 +35,7 @@ func NewEnforcer(c *Casbin) *Enforcer {
 	}
 
 	// Load model configuration file and policy store adapter
-	enforcer, err := casbin.NewEnforcer(c.model, adapter)
+	enforcer, err := casbin.NewEnforcer(*c.model, adapter)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create casbin enforcer: %v", err))
 	}
