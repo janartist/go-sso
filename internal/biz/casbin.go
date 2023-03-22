@@ -3,28 +3,28 @@ package biz
 import (
 	"context"
 	"fmt"
-
+	"github.com/casbin/casbin/v2"
+	"github.com/casbin/casbin/v2/model"
+	"github.com/casbin/casbin/v2/persist"
+	"github.com/casbin/casbin/v2/util"
+	gormadapter "github.com/casbin/gorm-adapter/v3"
 	"github.com/go-kratos/kratos/v2/middleware"
 	"github.com/go-kratos/kratos/v2/transport"
 	"github.com/go-kratos/kratos/v2/transport/http"
 	"gorm.io/gorm"
 	v1 "sso/api/casbin/v1"
 	"sso/internal/conf"
-
-	"github.com/casbin/casbin/v2"
-	"github.com/casbin/casbin/v2/model"
-	"github.com/casbin/casbin/v2/util"
-	gormadapter "github.com/casbin/gorm-adapter/v3"
 )
 
 type Casbin struct {
-	db    *gorm.DB
-	c     *conf.Casbin
-	model model.Model
+	db      *gorm.DB
+	c       *conf.Casbin
+	model   model.Model
+	watcher persist.WatcherEx
 }
 
-func NewCasbinFromGorm(db *gorm.DB, model model.Model, c *conf.Casbin) *Casbin {
-	return &Casbin{db, c, model}
+func NewCasbinFromGorm(db *gorm.DB, model model.Model, watcher persist.WatcherEx, c *conf.Casbin) *Casbin {
+	return &Casbin{db, c, model, watcher}
 }
 
 type Enforcer struct {
@@ -46,11 +46,12 @@ func NewEnforcer(c *Casbin) (*Enforcer, error) {
 		return nil, fmt.Errorf("failed to create casbin enforcer: %v", err)
 	}
 	enforcer.AddFunction("BWIpMatch", c.BWIpMatch)
+	enforcer.SetWatcher(c.watcher)
 	return &Enforcer{enforcer, c}, nil
 }
 
 // Authorize casbin 统一鉴权
-// Authorize determines if current user has been authorized to take an action on an object.
+// Authorize determines if current user has been authorized to take an action on an apiect.
 func (enforcer *Enforcer) Authorize(uid, apiID, tenant, clientIP string) (bool, error) {
 	// Load policy from Database
 	err := enforcer.LoadPolicy()
@@ -103,53 +104,47 @@ func (enforcer *Enforcer) AuthorizeMiddleware() middleware.Middleware {
 	}
 }
 
-// AddUserForRoleInDomain 添加用户
-func (enforcer *Enforcer) AddUserForRoleInDomain(user, role, domain string) (bool, error) {
-	if enforcer.GetModel().HasPolicy("g", "g", []string{user, role, domain}) {
-		return true, nil
-	}
-	return enforcer.AddNamedGroupingPolicy("g", user, role, domain)
+//  添加用户
+func (enforcer *Enforcer) BindUserRole(user, role string) (bool, error) {
+	return enforcer.AddNamedGroupingPolicy("g", user, role)
 }
 
-// DelUserForRoleInDomain 添加角色
-func (enforcer *Enforcer) DelUserForRoleInDomain(user, role, domain string) (bool, error) {
-	if enforcer.GetModel().HasPolicy("g", "g", []string{user, role, domain}) {
-		return enforcer.RemoveNamedGroupingPolicy("g", user, role, domain)
-	}
-	return true, nil
+//  删除用户
+func (enforcer *Enforcer) DelUserRole(user, role string) (bool, error) {
+	return enforcer.RemoveNamedGroupingPolicy("g", user, role)
 }
 
 // GetUsersForRoleInDomain 从角色查询用户
-func (enforcer *Enforcer) GetUsersForRoleInDomain(role, domain string) ([]string, error) {
-	res, err := enforcer.GetModel()["g"]["g"].RM.GetUsers(role, domain)
+func (enforcer *Enforcer) GetUsersInRole(role string) ([]string, error) {
+	res, err := enforcer.GetNamedRoleManager("g").GetUsers(role)
 	return res, err
 }
 
 // GetRolesForUserInDomain 从用户查询角色
-func (enforcer *Enforcer) GetRolesForUserInDomain(user, domain string) ([]string, error) {
-	res, err := enforcer.GetModel()["g"]["g"].RM.GetRoles(user, domain)
+func (enforcer *Enforcer) GetRolesInUser(user string) ([]string, error) {
+	res, err := enforcer.GetNamedRoleManager("g").GetRoles(user)
 	return res, err
 }
 
 // AddApiForMenuInDomain 从菜单添加api
-func (enforcer *Enforcer) AddApiForMenuInDomain(api, menu, domain string) (bool, error) {
-	if enforcer.GetModel().HasPolicy("g", "g2", []string{api, menu, domain}) {
-		return true, nil
-	}
+func (enforcer *Enforcer) BindApiMenuInDomain(api, menu, domain string) (bool, error) {
 	return enforcer.AddNamedGroupingPolicy("g2", api, menu, domain)
 }
 
 // DelApiForMenuInDomain 从菜单删除api
-func (enforcer *Enforcer) DelApiForMenuInDomain(api, menu, domain string) (bool, error) {
-	if enforcer.GetModel().HasPolicy("g", "g2", []string{api, menu, domain}) {
-		return enforcer.RemoveNamedGroupingPolicy("g2", api, menu, domain)
-	}
-	return true, nil
+func (enforcer *Enforcer) DelApiMenuInDomain(api, menu, domain string) (bool, error) {
+	return enforcer.RemoveNamedGroupingPolicy("g2", api, menu, domain)
 }
 
 // GetApisForMenuInDomain 获取菜单下的api
-func (enforcer *Enforcer) GetApisForMenuInDomain(menu, domain string) ([]string, error) {
-	res, err := enforcer.GetModel()["g"]["g2"].RM.GetUsers(menu, domain)
+func (enforcer *Enforcer) GetApisInMenuDomain(menu, domain string) ([]string, error) {
+	res, err := enforcer.GetNamedRoleManager("g2").GetUsers(menu, domain)
+	return res, err
+}
+
+// GetApisForMenuInDomain 获取api下的菜单
+func (enforcer *Enforcer) GetMenusInApiDomain(api, domain string) ([]string, error) {
+	res, err := enforcer.GetNamedRoleManager("g2").GetRoles(api, domain)
 	return res, err
 }
 
@@ -180,13 +175,61 @@ func (c *Casbin) BWIpMatch(args ...interface{}) (interface{}, error) {
 	return false, nil
 }
 
+// g为user->role的group
+// g2为api->menu的group
 func RABCModelWithIpMatch() model.Model {
 	m := model.NewModel()
-	m.AddDef("r", "r", "sub, obj, dom, ip")
-	m.AddDef("p", "p", "sub, obj, dom")
-	m.AddDef("g", "g", "_, _, _")
-	m.AddDef("g", "g2", "_, _, _")
+	m.AddDef("r", "r", "user, api, tenant, ip") // 权限检验入参
+	m.AddDef("p", "p", "user, api, tenant")     // 权限验参
+	m.AddDef("g", "g", "_, _, _")               // g的参数为user,role
+	m.AddDef("g", "g2", "_, _, _")              // g的参数为api,menu,dom
 	m.AddDef("e", "e", "some(where (p.eft == allow))")
-	m.AddDef("m", "m", "g(r.sub, p.sub, r.dom) && g2(r.obj, p.obj, r.dom) && r.dom == p.dom && BWIpMatch(r.ip) || r.sub == \"1\"")
+	m.AddDef("m", "m", "g(r.user, p.user, r.tenant) && g2(r.api, p.api, r.tenant) && r.tenant == p.tenant && BWIpMatch(r.ip) || r.user == \"1\"")
 	return m
+}
+
+func NewCasbinWatcherEx() *CasbinWatcherEx {
+	return &CasbinWatcherEx{}
+}
+
+type CasbinWatcherEx struct {
+	callback func(string)
+}
+
+func (w *CasbinWatcherEx) Close() {
+}
+
+func (w *CasbinWatcherEx) SetUpdateCallback(callback func(string)) error {
+	w.callback = callback
+	return nil
+}
+
+func (w *CasbinWatcherEx) Update() error {
+	if w.callback != nil {
+		w.callback("")
+	}
+	return nil
+}
+
+func (w CasbinWatcherEx) UpdateForAddPolicy(sec, ptype string, params ...string) error {
+	return nil
+}
+func (w CasbinWatcherEx) UpdateForRemovePolicy(sec, ptype string, params ...string) error {
+	return nil
+}
+
+func (w CasbinWatcherEx) UpdateForRemoveFilteredPolicy(sec, ptype string, fieldIndex int, fieldValues ...string) error {
+	return nil
+}
+
+func (w CasbinWatcherEx) UpdateForSavePolicy(model model.Model) error {
+	return nil
+}
+
+func (w CasbinWatcherEx) UpdateForAddPolicies(sec string, ptype string, rules ...[]string) error {
+	return nil
+}
+
+func (w CasbinWatcherEx) UpdateForRemovePolicies(sec string, ptype string, rules ...[]string) error {
+	return nil
 }
