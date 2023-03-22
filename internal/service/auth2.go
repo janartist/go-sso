@@ -16,14 +16,17 @@ func NewAuthService(oauth2 *biz.Oauth2Server) *AuthService {
 	return &AuthService{oauth2: oauth2}
 }
 
+// code认证
 func (a *AuthService) Authorize(ctx http.Context) error {
 	return a.oauth2.HandleAuthorizeRequestDefault(ctx.Response(), ctx.Request())
 }
 
+// token生成
 func (a *AuthService) Token(ctx http.Context) error {
 	return a.oauth2.HandleTokenRequestDefault(ctx.Response(), ctx.Request())
 }
 
+// token验证
 func (a *AuthService) Verify(ctx context.Context, request *v1.VerifyRequest) (*v1.VerifyReply, error) {
 	claims, err := a.oauth2.HandleTokenParse(ctx, request.VerifyBody.GetToken())
 	return &v1.VerifyReply{

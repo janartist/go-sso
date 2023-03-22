@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package api.casbin.v1;
+
+import "google/api/annotations.proto";
+import "errors/errors.proto";
+
+option go_package = "sso/api/casbin/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.casbin.v1";
+
+enum ErrorReason {
+	// 设置缺省错误码
+	option (errors.default_code) = 500;
+
+	// 为某个枚举单独设置错误码
+	USER_NOT_FOUND = 0 [(errors.code) = 404];
+	API_NOT_FOUND = 1 [(errors.code) = 404];
+	CONTENT_MISSING = 2 [(errors.code) = 400];
+	NO_ACCESS = 3 [(errors.code) = 403];
+	AUTH_ERROR = 4 [(errors.code) = 401];
+}

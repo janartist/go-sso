@@ -4,13 +4,41 @@
     "title": "sso/v1/sso.proto",
     "version": "version not set"
   },
+  "tags": [
+    {
+      "name": "SSO"
+    }
+  ],
   "consumes": [
     "application/json"
   ],
   "produces": [
     "application/json"
   ],
-  "paths": {},
+  "paths": {
+    "/sso/user/list": {
+      "get": {
+        "operationId": "SSO_UserList",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UserListReply"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "SSO"
+        ]
+      }
+    }
+  },
   "definitions": {
     "protobufAny": {
       "type": "object",
@@ -39,6 +67,9 @@
           }
         }
       }
+    },
+    "v1UserListReply": {
+      "type": "object"
     }
   }
 }

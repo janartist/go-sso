@@ -1,9 +1,14 @@
 package biz
 
 import (
+	"context"
 	"fmt"
-	"gorm.io/gorm"
 
+	"github.com/go-kratos/kratos/v2/middleware"
+	"github.com/go-kratos/kratos/v2/transport"
+	"github.com/go-kratos/kratos/v2/transport/http"
+	"gorm.io/gorm"
+	v1 "sso/api/casbin/v1"
 	"sso/internal/conf"
 
 	"github.com/casbin/casbin/v2"
@@ -13,39 +18,84 @@ import (
 )
 
 type Casbin struct {
-	db        *gorm.DB
-	prefix    string
-	tableName string
-	model     *model.Model
-}
-type Enforcer struct {
-	*casbin.Enforcer
+	db    *gorm.DB
+	c     *conf.Casbin
+	model *model.Model
 }
 
 func NewCasbinFromGorm(db *gorm.DB, model *model.Model, c *conf.Casbin) *Casbin {
-	return &Casbin{db, c.GetGorm().GetPrefix(), c.GetGorm().GetTable(), model}
+	return &Casbin{db, c, model}
+}
+
+type Enforcer struct {
+	*casbin.Enforcer
+	casbin *Casbin
 }
 
 // NewEnforcer
-func NewEnforcer(c *Casbin) *Enforcer {
+func NewEnforcer(c *Casbin) (*Enforcer, error) {
 	// Initialize  casbin adapter
-	adapter, err := gormadapter.NewAdapterByDBUseTableName(c.db, c.prefix, c.tableName)
+	adapter, err := gormadapter.NewAdapterByDBUseTableName(c.db, c.c.GetGorm().GetPrefix(), c.c.GetGorm().GetTable())
 	if err != nil {
-		panic(fmt.Sprintf("failed to initialize casbin adapter: %v", err))
+		return nil, fmt.Errorf("failed to initialize casbin adapter: %v", err)
 	}
 
 	// Load model configuration file and policy store adapter
 	enforcer, err := casbin.NewEnforcer(*c.model, adapter)
 	if err != nil {
-		panic(fmt.Sprintf("failed to create casbin enforcer: %v", err))
+		return nil, fmt.Errorf("failed to create casbin enforcer: %v", err)
 	}
-	return &Enforcer{enforcer}
+	return &Enforcer{enforcer, c}, nil
 }
 
 // Authorize casbin 统一鉴权
 // Authorize determines if current user has been authorized to take an action on an object.
-func (enforcer *Enforcer) Authorize() (bool, error) {
+func (enforcer *Enforcer) AuthorizeFromHttp(r *http.Request) (bool, error) {
+	// Extract client IP address from request headers
+	clientIP := r.Header.Get("X-Forwarded-For")
+	if clientIP == "" {
+		clientIP = r.RemoteAddr
+	}
+	var (
+		uid    = ""
+		apiID  = ""
+		tenant = ""
+	)
+
+	// Load policy from Database
+	err := enforcer.LoadPolicy()
+	if err != nil {
+		return false, v1.ErrorContentMissing("LoadPolicy error")
+	}
+
+	// Casbin enforces policy
+	ok, err := enforcer.Enforce(
+		enforcer.casbin.c.GetGorm().GetUserPrefix()+uid,
+		enforcer.casbin.c.GetGorm().GetApiPrefix()+apiID,
+		tenant,
+		clientIP,
+	)
+	if err != nil || !ok {
+		return false, v1.ErrorAuthError("Enforce error")
+	}
 	return true, nil
+}
+
+// 鉴权中间件
+func (enforcer *Enforcer) AuthorizeMiddleware() middleware.Middleware {
+	return func(handler middleware.Handler) middleware.Handler {
+		return func(ctx context.Context, req interface{}) (reply interface{}, err error) {
+			if tr, ok := transport.FromServerContext(ctx); ok {
+				if tr.Kind() == transport.KindHTTP {
+					ok, err = enforcer.AuthorizeFromHttp(tr.(http.Transporter).Request())
+					if !ok || err != nil {
+						return nil, err
+					}
+				}
+			}
+			return handler(ctx, req)
+		}
+	}
 }
 
 // AddUserForRoleInDomain 添加用户

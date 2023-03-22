@@ -37,36 +37,6 @@ func (j *authRepo) Auth(ctx context.Context, user *biz.User, clientID, username,
 	return nil
 }
 
-//func (j *authRepo) Verfity(c *gin.Context) (bool, error) {
-//	var keyFunc jwt.Keyfunc = func(t *jwt.Token) (interface{}, error) {
-//		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-//			return nil, rcode.TokenParseFail
-//		}
-//		return []byte("00000000"), nil
-//	}
-//
-//	// Parse and verify jwt Jwt token
-//	token, err := jwt.ParseWithClaims(c.GetHeader("X-Token"), &generates.JWTAccessClaims{}, keyFunc)
-//	if err != nil {
-//		return false, err
-//	}
-//	claims, ok := token.Claims.(*generates.JWTAccessClaims)
-//	if !ok || !token.Valid {
-//		return false, rcode.TokenValidFail
-//	}
-//	user := &dao.User{}
-//	uid, _ := strconv.Atoi(claims.Subject)
-//	err = dao.DB.Where("id = ? and status = ?", uid, 0).First(user).Error
-//	if err != nil {
-//		return false, rcode.UserNotFound
-//	}
-//	c.Set("uid", strconv.Itoa(int(user.ID)))
-//	c.Set("user", user)
-//	c.Set("claims", claims)
-//	c.Set("login", true)
-//	return true, nil
-//}
-
 func NewAuthClientStore(db *gorm.DB) oauth2.ClientStore {
 	return &AuthClientStore{db: db}
 }

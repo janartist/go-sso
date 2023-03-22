@@ -44,6 +44,8 @@ message Casbin {
  message Gorm {
    string prefix = 1;
    string table = 2;
+   string user_prefix = 3;
+   string api_prefix= 4;
  }
  Gorm gorm = 1;
 }
