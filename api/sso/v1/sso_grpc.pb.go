@@ -19,89 +19,89 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	SSO_UserList_FullMethodName = "/api.sso.v1.SSO/UserList"
+	Sso_UserList_FullMethodName = "/api.sso.v1.Sso/UserList"
 )
 
-// SSOClient is the client API for SSO service.
+// SsoClient is the client API for Sso service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type SSOClient interface {
+type SsoClient interface {
 	UserList(ctx context.Context, in *UserListRequest, opts ...grpc.CallOption) (*UserListReply, error)
 }
 
-type sSOClient struct {
+type ssoClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewSSOClient(cc grpc.ClientConnInterface) SSOClient {
-	return &sSOClient{cc}
+func NewSsoClient(cc grpc.ClientConnInterface) SsoClient {
+	return &ssoClient{cc}
 }
 
-func (c *sSOClient) UserList(ctx context.Context, in *UserListRequest, opts ...grpc.CallOption) (*UserListReply, error) {
+func (c *ssoClient) UserList(ctx context.Context, in *UserListRequest, opts ...grpc.CallOption) (*UserListReply, error) {
 	out := new(UserListReply)
-	err := c.cc.Invoke(ctx, SSO_UserList_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, Sso_UserList_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// SSOServer is the server API for SSO service.
-// All implementations must embed UnimplementedSSOServer
+// SsoServer is the server API for Sso service.
+// All implementations must embed UnimplementedSsoServer
 // for forward compatibility
-type SSOServer interface {
+type SsoServer interface {
 	UserList(context.Context, *UserListRequest) (*UserListReply, error)
-	mustEmbedUnimplementedSSOServer()
+	mustEmbedUnimplementedSsoServer()
 }
 
-// UnimplementedSSOServer must be embedded to have forward compatible implementations.
-type UnimplementedSSOServer struct {
+// UnimplementedSsoServer must be embedded to have forward compatible implementations.
+type UnimplementedSsoServer struct {
 }
 
-func (UnimplementedSSOServer) UserList(context.Context, *UserListRequest) (*UserListReply, error) {
+func (UnimplementedSsoServer) UserList(context.Context, *UserListRequest) (*UserListReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UserList not implemented")
 }
-func (UnimplementedSSOServer) mustEmbedUnimplementedSSOServer() {}
+func (UnimplementedSsoServer) mustEmbedUnimplementedSsoServer() {}
 
-// UnsafeSSOServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to SSOServer will
+// UnsafeSsoServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to SsoServer will
 // result in compilation errors.
-type UnsafeSSOServer interface {
-	mustEmbedUnimplementedSSOServer()
+type UnsafeSsoServer interface {
+	mustEmbedUnimplementedSsoServer()
 }
 
-func RegisterSSOServer(s grpc.ServiceRegistrar, srv SSOServer) {
-	s.RegisterService(&SSO_ServiceDesc, srv)
+func RegisterSsoServer(s grpc.ServiceRegistrar, srv SsoServer) {
+	s.RegisterService(&Sso_ServiceDesc, srv)
 }
 
-func _SSO_UserList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Sso_UserList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UserListRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SSOServer).UserList(ctx, in)
+		return srv.(SsoServer).UserList(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SSO_UserList_FullMethodName,
+		FullMethod: Sso_UserList_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SSOServer).UserList(ctx, req.(*UserListRequest))
+		return srv.(SsoServer).UserList(ctx, req.(*UserListRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// SSO_ServiceDesc is the grpc.ServiceDesc for SSO service.
+// Sso_ServiceDesc is the grpc.ServiceDesc for Sso service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var SSO_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.sso.v1.SSO",
-	HandlerType: (*SSOServer)(nil),
+var Sso_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "api.sso.v1.Sso",
+	HandlerType: (*SsoServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "UserList",
-			Handler:    _SSO_UserList_Handler,
+			Handler:    _Sso_UserList_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

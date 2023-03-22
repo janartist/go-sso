@@ -20,10 +20,10 @@ import (
 type Casbin struct {
 	db    *gorm.DB
 	c     *conf.Casbin
-	model *model.Model
+	model model.Model
 }
 
-func NewCasbinFromGorm(db *gorm.DB, model *model.Model, c *conf.Casbin) *Casbin {
+func NewCasbinFromGorm(db *gorm.DB, model model.Model, c *conf.Casbin) *Casbin {
 	return &Casbin{db, c, model}
 }
 
@@ -41,27 +41,17 @@ func NewEnforcer(c *Casbin) (*Enforcer, error) {
 	}
 
 	// Load model configuration file and policy store adapter
-	enforcer, err := casbin.NewEnforcer(*c.model, adapter)
+	enforcer, err := casbin.NewEnforcer(c.model, adapter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create casbin enforcer: %v", err)
 	}
+	enforcer.AddFunction("BWIpMatch", c.BWIpMatch)
 	return &Enforcer{enforcer, c}, nil
 }
 
 // Authorize casbin 统一鉴权
 // Authorize determines if current user has been authorized to take an action on an object.
-func (enforcer *Enforcer) AuthorizeFromHttp(r *http.Request) (bool, error) {
-	// Extract client IP address from request headers
-	clientIP := r.Header.Get("X-Forwarded-For")
-	if clientIP == "" {
-		clientIP = r.RemoteAddr
-	}
-	var (
-		uid    = ""
-		apiID  = ""
-		tenant = ""
-	)
-
+func (enforcer *Enforcer) Authorize(uid, apiID, tenant, clientIP string) (bool, error) {
 	// Load policy from Database
 	err := enforcer.LoadPolicy()
 	if err != nil {
@@ -79,6 +69,21 @@ func (enforcer *Enforcer) AuthorizeFromHttp(r *http.Request) (bool, error) {
 		return false, v1.ErrorAuthError("Enforce error")
 	}
 	return true, nil
+}
+func (enforcer *Enforcer) AuthorizeFromHttp(r *http.Request) (bool, error) {
+	//enforcer.AddUserForRoleInDomain("1", "1", "22")
+	//enforcer.AddApiForMenuInDomain("2", "2", "22")
+	// Extract client IP address from request headers
+	clientIP := r.Header.Get("X-Forwarded-For")
+	if clientIP == "" {
+		clientIP = r.RemoteAddr
+	}
+	var (
+		uid    = "1"
+		apiID  = "2"
+		tenant = "3"
+	)
+	return enforcer.Authorize(uid, apiID, tenant, clientIP)
 }
 
 // 鉴权中间件
@@ -175,7 +180,7 @@ func (c *Casbin) BWIpMatch(args ...interface{}) (interface{}, error) {
 	return false, nil
 }
 
-func RABCModelWithIpMatch() *model.Model {
+func RABCModelWithIpMatch() model.Model {
 	m := model.NewModel()
 	m.AddDef("r", "r", "sub, obj, dom, ip")
 	m.AddDef("p", "p", "sub, obj, dom")
@@ -183,5 +188,5 @@ func RABCModelWithIpMatch() *model.Model {
 	m.AddDef("g", "g2", "_, _, _")
 	m.AddDef("e", "e", "some(where (p.eft == allow))")
 	m.AddDef("m", "m", "g(r.sub, p.sub, r.dom) && g2(r.obj, p.obj, r.dom) && r.dom == p.dom && BWIpMatch(r.ip) || r.sub == \"1\"")
-	return &m
+	return m
 }

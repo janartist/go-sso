@@ -19,24 +19,24 @@ var _ = binding.EncodeURL
 
 const _ = http.SupportPackageIsVersion1
 
-const OperationSSOUserList = "/api.sso.v1.SSO/UserList"
+const OperationSsoUserList = "/api.sso.v1.Sso/UserList"
 
-type SSOHTTPServer interface {
+type SsoHTTPServer interface {
 	UserList(context.Context, *UserListRequest) (*UserListReply, error)
 }
 
-func RegisterSSOHTTPServer(s *http.Server, srv SSOHTTPServer) {
+func RegisterSsoHTTPServer(s *http.Server, srv SsoHTTPServer) {
 	r := s.Route("/")
-	r.GET("/sso/user/list", _SSO_UserList0_HTTP_Handler(srv))
+	r.GET("/sso/user/list", _Sso_UserList0_HTTP_Handler(srv))
 }
 
-func _SSO_UserList0_HTTP_Handler(srv SSOHTTPServer) func(ctx http.Context) error {
+func _Sso_UserList0_HTTP_Handler(srv SsoHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in UserListRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationSSOUserList)
+		http.SetOperation(ctx, OperationSsoUserList)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.UserList(ctx, req.(*UserListRequest))
 		})
@@ -49,23 +49,23 @@ func _SSO_UserList0_HTTP_Handler(srv SSOHTTPServer) func(ctx http.Context) error
 	}
 }
 
-type SSOHTTPClient interface {
+type SsoHTTPClient interface {
 	UserList(ctx context.Context, req *UserListRequest, opts ...http.CallOption) (rsp *UserListReply, err error)
 }
 
-type SSOHTTPClientImpl struct {
+type SsoHTTPClientImpl struct {
 	cc *http.Client
 }
 
-func NewSSOHTTPClient(client *http.Client) SSOHTTPClient {
-	return &SSOHTTPClientImpl{client}
+func NewSsoHTTPClient(client *http.Client) SsoHTTPClient {
+	return &SsoHTTPClientImpl{client}
 }
 
-func (c *SSOHTTPClientImpl) UserList(ctx context.Context, in *UserListRequest, opts ...http.CallOption) (*UserListReply, error) {
+func (c *SsoHTTPClientImpl) UserList(ctx context.Context, in *UserListRequest, opts ...http.CallOption) (*UserListReply, error) {
 	var out UserListReply
 	pattern := "/sso/user/list"
 	path := binding.EncodeURL(pattern, in, true)
-	opts = append(opts, http.Operation(OperationSSOUserList))
+	opts = append(opts, http.Operation(OperationSsoUserList))
 	opts = append(opts, http.PathTemplate(pattern))
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {

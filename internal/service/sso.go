@@ -7,7 +7,7 @@ import (
 )
 
 type SSOService struct {
-	pb.UnimplementedSSOServer
+	pb.UnimplementedSsoServer
 }
 
 func NewSSOService() *SSOService {

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/go-kratos/kratos/v2/middleware/selector"
 	authv1 "sso/api/auth/v1"
 	ssov1 "sso/api/sso/v1"
 	"sso/internal/biz"
@@ -10,7 +11,6 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/logging"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
-	"github.com/go-kratos/kratos/v2/middleware/selector"
 	"github.com/go-kratos/kratos/v2/transport/http"
 )
 
@@ -20,11 +20,8 @@ func NewHTTPServer(c *conf.Server, auth *service.AuthService, sso *service.SSOSe
 		http.Middleware(
 			recovery.Recovery(),
 			logging.Server(logger),
-		),
-		// 鉴权
-		http.Middleware(
 			selector.Server(enforcer.AuthorizeMiddleware()).
-				Prefix("sso").
+				Prefix("/api.sso").
 				Build(),
 		),
 	}
@@ -44,7 +41,7 @@ func NewHTTPServer(c *conf.Server, auth *service.AuthService, sso *service.SSOSe
 	r.GET("/token", auth.Token)
 
 	authv1.RegisterAuthHTTPServer(srv, auth)
-	ssov1.RegisterSSOHTTPServer(srv, sso)
+	ssov1.RegisterSsoHTTPServer(srv, sso)
 
 	return srv
 }

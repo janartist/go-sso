@@ -9,7 +9,7 @@ option go_package = "sso/api/sso/v1;v1";
 option java_multiple_files = true;
 option java_package = "api.sso.v1";
 
-service SSO {
+service Sso {
   rpc UserList (UserListRequest) returns (UserListReply) {
     option(google.api.http) = {
       get : "/sso/user/list"
