@@ -20,11 +20,19 @@ service Auth {
 
 message VerifyRequest {
 	message VerifyBody {
-		string token = 1;
+		string access_token = 1;
+		string api_url = 2;
+		string tenant = 3;
+		string client_ip = 4;
+
 	}
 	VerifyBody verify_body = 1;
 }
 message VerifyReply {
-	string ID = 1;
-	string Subject = 2;
+	bool Access = 1;
+	User user = 2;
+	message User {
+		string ID = 1;
+		string Subject = 2;
+	}
 }

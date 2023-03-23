@@ -1,15 +1,12 @@
 package biz
 
 import (
-	"context"
 	"fmt"
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
 	"github.com/casbin/casbin/v2/util"
 	gormadapter "github.com/casbin/gorm-adapter/v3"
-	"github.com/go-kratos/kratos/v2/middleware"
-	"github.com/go-kratos/kratos/v2/transport"
 	"github.com/go-kratos/kratos/v2/transport/http"
 	"gorm.io/gorm"
 	v1 "sso/api/casbin/v1"
@@ -45,7 +42,7 @@ func NewEnforcer(c *Casbin) (*Enforcer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create casbin enforcer: %v", err)
 	}
-	enforcer.AddFunction("BWIpMatch", c.BWIpMatch)
+	// enforcer.AddFunction("BWIpMatch", c.BWIpMatch)
 	enforcer.SetWatcher(c.watcher)
 	return &Enforcer{enforcer, c}, nil
 }
@@ -71,37 +68,17 @@ func (enforcer *Enforcer) Authorize(uid, apiID, tenant, clientIP string) (bool, 
 	}
 	return true, nil
 }
-func (enforcer *Enforcer) AuthorizeFromHttp(r *http.Request) (bool, error) {
-	//enforcer.AddUserForRoleInDomain("1", "1", "22")
-	//enforcer.AddApiForMenuInDomain("2", "2", "22")
+func (enforcer *Enforcer) AuthorizeFromHttp(uid string, r *http.Request) (bool, error) {
 	// Extract client IP address from request headers
 	clientIP := r.Header.Get("X-Forwarded-For")
 	if clientIP == "" {
 		clientIP = r.RemoteAddr
 	}
 	var (
-		uid    = "1"
-		apiID  = "2"
-		tenant = "3"
+		apiID  = r.URL.Path + r.Method
+		tenant = r.Form.Get("tenant")
 	)
 	return enforcer.Authorize(uid, apiID, tenant, clientIP)
-}
-
-// 鉴权中间件
-func (enforcer *Enforcer) AuthorizeMiddleware() middleware.Middleware {
-	return func(handler middleware.Handler) middleware.Handler {
-		return func(ctx context.Context, req interface{}) (reply interface{}, err error) {
-			if tr, ok := transport.FromServerContext(ctx); ok {
-				if tr.Kind() == transport.KindHTTP {
-					ok, err = enforcer.AuthorizeFromHttp(tr.(http.Transporter).Request())
-					if !ok || err != nil {
-						return nil, err
-					}
-				}
-			}
-			return handler(ctx, req)
-		}
-	}
 }
 
 //  添加用户
@@ -153,7 +130,7 @@ func (enforcer *Enforcer) GetMenusInApiDomain(api, domain string) ([]string, err
 func (c *Casbin) BWIpMatch(args ...interface{}) (interface{}, error) {
 	rIp := args[0].(string)
 	ok := false
-	var ips []string
+	var ips = []string{"127.0.0.1"}
 	black := false
 	//黑名单
 	if black {
@@ -181,10 +158,10 @@ func RABCModelWithIpMatch() model.Model {
 	m := model.NewModel()
 	m.AddDef("r", "r", "user, api, tenant, ip") // 权限检验入参
 	m.AddDef("p", "p", "user, api, tenant")     // 权限验参
-	m.AddDef("g", "g", "_, _, _")               // g的参数为user,role
-	m.AddDef("g", "g2", "_, _, _")              // g的参数为api,menu,dom
+	m.AddDef("g", "g", "_, _")                  // g的参数为user,role
+	m.AddDef("g", "g2", "_, _, _")              // g的参数为api,menu,tenant
 	m.AddDef("e", "e", "some(where (p.eft == allow))")
-	m.AddDef("m", "m", "g(r.user, p.user, r.tenant) && g2(r.api, p.api, r.tenant) && r.tenant == p.tenant && BWIpMatch(r.ip) || r.user == \"1\"")
+	m.AddDef("m", "m", "g(r.user, p.user) && g2(r.api, p.api, r.tenant) && r.tenant == p.tenant || r.user == \"1\"") // && BWIpMatch(r.ip)
 	return m
 }
 

@@ -50,10 +50,30 @@
     }
   },
   "definitions": {
+    "VerifyReplyUser": {
+      "type": "object",
+      "properties": {
+        "ID": {
+          "type": "string"
+        },
+        "Subject": {
+          "type": "string"
+        }
+      }
+    },
     "VerifyRequestVerifyBody": {
       "type": "object",
       "properties": {
-        "token": {
+        "accessToken": {
+          "type": "string"
+        },
+        "apiUrl": {
+          "type": "string"
+        },
+        "tenant": {
+          "type": "string"
+        },
+        "clientIp": {
           "type": "string"
         }
       }
@@ -89,11 +109,11 @@
     "v1VerifyReply": {
       "type": "object",
       "properties": {
-        "ID": {
-          "type": "string"
+        "Access": {
+          "type": "boolean"
         },
-        "Subject": {
-          "type": "string"
+        "user": {
+          "$ref": "#/definitions/VerifyReplyUser"
         }
       }
     }

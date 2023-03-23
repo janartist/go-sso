@@ -115,8 +115,8 @@ func (o *Oauth2Server) HandleTokenRequestDefault(w http.ResponseWriter, r *http.
 	return o.server.HandleTokenRequest(w, r)
 }
 
-// HandleTokenParse token parse handling
-func (o *Oauth2Server) HandleTokenParse(ctx context.Context, access string) (*generates.JWTAccessClaims, error) {
+// token parse handling
+func (o *Oauth2Server) HandleTokenParse(access string) (*generates.JWTAccessClaims, error) {
 	// Parse and verify jwt access token
 	token, err := jwt.ParseWithClaims(access, &generates.JWTAccessClaims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
