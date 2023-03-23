@@ -2,10 +2,8 @@ package data
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/glebarez/sqlite"
-	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlserver"
 	"time"
 
 	"gorm.io/driver/mysql"
@@ -53,12 +51,8 @@ func NewDatabase(c *conf.Data) (*gorm.DB, error) {
 	switch c.GetDatabase().GetDriver() {
 	case "mysql":
 		dir = mysql.Open
-	case "postgres":
-		dir = postgres.Open
-	case "sqlserver":
-		dir = sqlserver.Open
 	default:
-		dir = sqlite.Open
+		return nil, errors.New("only support mysql")
 	}
 
 	db, err := gorm.Open(
