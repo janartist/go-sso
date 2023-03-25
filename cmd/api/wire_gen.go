@@ -39,17 +39,17 @@ func wireApp(confServer *conf.Server, confData *conf.Data, casbin *conf.Casbin, 
 	}
 	authRepo := data.NewAuthRepo(dataData)
 	oauth2Server := biz.NewOauth2Server(client, clientStore, authRepo, logger)
-	model := biz.RABCModelWithIpMatch()
 	casbinWatcherEx := biz.NewCasbinWatcherEx()
-	bizCasbin := biz.NewCasbinFromGorm(db, model, casbinWatcherEx, casbin)
-	enforcer, err := biz.NewEnforcer(bizCasbin)
+	bizCasbin := biz.NewCasbinFromGorm(db, casbinWatcherEx, casbin)
+	model := biz.RABCModelWithIpMatch(casbin)
+	enforcer, err := biz.NewEnforcer(bizCasbin, model)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
 	authService := service.NewAuthService(oauth2Server, enforcer)
 	grpcServer := server.NewGRPCServer(confServer, authService, logger)
-	ssoService := service.NewSSOService()
+	ssoService := service.NewSSOService(enforcer)
 	casbinService := service.NewCasbinService(enforcer)
 	httpServer := server.NewHTTPServer(confServer, authService, ssoService, casbinService, logger)
 	app := newApp(logger, grpcServer, httpServer)

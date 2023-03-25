@@ -2,35 +2,51 @@ package biz
 
 import (
 	"fmt"
+
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
 	"github.com/casbin/casbin/v2/util"
 	gormadapter "github.com/casbin/gorm-adapter/v3"
 	"github.com/go-kratos/kratos/v2/transport/http"
+
 	"gorm.io/gorm"
+
 	v1 "sso/api/casbin/v1"
 	"sso/internal/conf"
 )
 
+// 鉴权类型
+const (
+	CasbinObjTypeApi    CasbinObjType = "api"
+	CasbinObjTypeMenu   CasbinObjType = "menu"
+	CasbinObjTypeTenant CasbinObjType = "tenant"
+)
+
+type CasbinObjType string
 type Casbin struct {
 	db      *gorm.DB
 	c       *conf.Casbin
-	model   model.Model
 	watcher persist.WatcherEx
 }
 
-func NewCasbinFromGorm(db *gorm.DB, model model.Model, watcher persist.WatcherEx, c *conf.Casbin) *Casbin {
-	return &Casbin{db, c, model, watcher}
+func NewCasbinFromGorm(db *gorm.DB, watcher persist.WatcherEx, c *conf.Casbin) *Casbin {
+	return &Casbin{db, c, watcher}
 }
 
+// rbac模型中 主要需要调用的方法
+// AddRoleForUser 绑定用户名角色
+// DeleteRoleForUser 删除绑定关系
+// AddPermissionForUser 添加权限
+// DeletePermissionForUser 删除权限
 type Enforcer struct {
-	*casbin.Enforcer
+	e      *casbin.Enforcer
+	m      model.Model
 	casbin *Casbin
 }
 
 // NewEnforcer
-func NewEnforcer(c *Casbin) (*Enforcer, error) {
+func NewEnforcer(c *Casbin, m model.Model) (*Enforcer, error) {
 	// Initialize  casbin adapter
 	adapter, err := gormadapter.NewAdapterByDBUseTableName(c.db, c.c.GetGorm().GetPrefix(), c.c.GetGorm().GetTable())
 	if err != nil {
@@ -38,29 +54,30 @@ func NewEnforcer(c *Casbin) (*Enforcer, error) {
 	}
 
 	// Load model configuration file and policy store adapter
-	enforcer, err := casbin.NewEnforcer(c.model, adapter)
+	enforcer, err := casbin.NewEnforcer(m, adapter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create casbin enforcer: %v", err)
 	}
 	// enforcer.AddFunction("BWIpMatch", c.BWIpMatch)
 	enforcer.SetWatcher(c.watcher)
-	return &Enforcer{enforcer, c}, nil
+	return &Enforcer{enforcer, m, c}, nil
 }
 
 // Authorize casbin 统一鉴权
 // Authorize determines if current user has been authorized to take an action on an apiect.
-func (enforcer *Enforcer) Authorize(uid, apiID, tenant, clientIP string) (bool, error) {
+func (enforcer *Enforcer) Authorize(sub string, tpy CasbinObjType, obj string, domain, clientIP string) (bool, error) {
 	// Load policy from Database
-	err := enforcer.LoadPolicy()
+	err := enforcer.e.LoadPolicy()
 	if err != nil {
 		return false, v1.ErrorContentMissing("LoadPolicy error")
 	}
 
 	// Casbin enforces policy
-	ok, err := enforcer.Enforce(
-		enforcer.casbin.c.GetGorm().GetUserPrefix()+uid,
-		enforcer.casbin.c.GetGorm().GetApiPrefix()+apiID,
-		tenant,
+	ok, err := enforcer.e.Enforce(
+		sub,
+		string(tpy),
+		obj,
+		domain,
 		clientIP,
 	)
 	if err != nil || !ok {
@@ -68,61 +85,53 @@ func (enforcer *Enforcer) Authorize(uid, apiID, tenant, clientIP string) (bool, 
 	}
 	return true, nil
 }
-func (enforcer *Enforcer) AuthorizeFromHttp(uid string, r *http.Request) (bool, error) {
+func (enforcer *Enforcer) AuthorizeUserApiFromHttp(uid string, r *http.Request) (bool, error) {
 	// Extract client IP address from request headers
 	clientIP := r.Header.Get("X-Forwarded-For")
 	if clientIP == "" {
 		clientIP = r.RemoteAddr
 	}
 	var (
-		apiID  = r.URL.Path + r.Method
-		tenant = r.Form.Get("tenant")
+		user   = enforcer.casbin.c.GetUserPrefix() + uid
+		api    = r.URL.Path + ":" + r.Method
+		domain = r.Form.Get("client_id")
 	)
-	return enforcer.Authorize(uid, apiID, tenant, clientIP)
+	return enforcer.Authorize(user, CasbinObjTypeApi, api, domain, clientIP)
 }
 
-//  添加用户
-func (enforcer *Enforcer) BindUserRole(user, role string) (bool, error) {
-	return enforcer.AddNamedGroupingPolicy("g", user, role)
+// Rbac权限相关
+func (enforcer *Enforcer) AddRoleForUserWithPrefix(user, role string) (bool, error) {
+	return enforcer.e.AddRoleForUser(enforcer.casbin.c.GetUserPrefix()+user,
+		enforcer.casbin.c.GetRolePrefix()+role)
 }
 
-//  删除用户
-func (enforcer *Enforcer) DelUserRole(user, role string) (bool, error) {
-	return enforcer.RemoveNamedGroupingPolicy("g", user, role)
+func (enforcer *Enforcer) DeleteRoleForUserWithPrefix(user, role string) (bool, error) {
+	return enforcer.e.DeleteRoleForUser(enforcer.casbin.c.GetUserPrefix()+user,
+		enforcer.casbin.c.GetRolePrefix()+role)
 }
 
-// GetUsersForRoleInDomain 从角色查询用户
-func (enforcer *Enforcer) GetUsersInRole(role string) ([]string, error) {
-	res, err := enforcer.GetNamedRoleManager("g").GetUsers(role)
-	return res, err
+func (enforcer *Enforcer) AddPermissionForUserWithPrefix(user string, typ CasbinObjType, obj, tenant string) (bool, error) {
+	return enforcer.e.AddPermissionForUser(
+		enforcer.casbin.c.GetUserPrefix()+user,
+		string(typ), obj, tenant)
 }
 
-// GetRolesForUserInDomain 从用户查询角色
-func (enforcer *Enforcer) GetRolesInUser(user string) ([]string, error) {
-	res, err := enforcer.GetNamedRoleManager("g").GetRoles(user)
-	return res, err
+func (enforcer *Enforcer) DeletePermissionForUserWithPrefix(user string, typ CasbinObjType, obj, tenant string) (bool, error) {
+	return enforcer.e.DeletePermissionForUser(
+		enforcer.casbin.c.GetUserPrefix()+user,
+		string(typ), obj, tenant)
 }
 
-// AddApiForMenuInDomain 从菜单添加api
-func (enforcer *Enforcer) BindApiMenuInDomain(api, menu, domain string) (bool, error) {
-	return enforcer.AddNamedGroupingPolicy("g2", api, menu, domain)
+func (enforcer *Enforcer) AddPermissionForRoleWithPrefix(role string, typ CasbinObjType, obj, tenant string) (bool, error) {
+	return enforcer.e.AddPermissionForUser(
+		enforcer.casbin.c.GetRolePrefix()+role,
+		string(typ), obj, tenant)
 }
 
-// DelApiForMenuInDomain 从菜单删除api
-func (enforcer *Enforcer) DelApiMenuInDomain(api, menu, domain string) (bool, error) {
-	return enforcer.RemoveNamedGroupingPolicy("g2", api, menu, domain)
-}
-
-// GetApisForMenuInDomain 获取菜单下的api
-func (enforcer *Enforcer) GetApisInMenuDomain(menu, domain string) ([]string, error) {
-	res, err := enforcer.GetNamedRoleManager("g2").GetUsers(menu, domain)
-	return res, err
-}
-
-// GetApisForMenuInDomain 获取api下的菜单
-func (enforcer *Enforcer) GetMenusInApiDomain(api, domain string) ([]string, error) {
-	res, err := enforcer.GetNamedRoleManager("g2").GetRoles(api, domain)
-	return res, err
+func (enforcer *Enforcer) DeletePermissionForRoleWithPrefix(role string, typ CasbinObjType, obj, tenant string) (bool, error) {
+	return enforcer.e.DeletePermissionForUser(
+		enforcer.casbin.c.GetRolePrefix()+role,
+		string(typ), obj, tenant)
 }
 
 // BWIpMatch 支持黑白名单的ip验证
@@ -154,14 +163,14 @@ func (c *Casbin) BWIpMatch(args ...interface{}) (interface{}, error) {
 
 // g为user->role的group
 // g2为api->menu的group
-func RABCModelWithIpMatch() model.Model {
+func RABCModelWithIpMatch(c *conf.Casbin) model.Model {
+	rootUser := fmt.Sprintf("%s%d", c.GetUserPrefix(), 1)
 	m := model.NewModel()
-	m.AddDef("r", "r", "user, api, tenant, ip") // 权限检验入参
-	m.AddDef("p", "p", "user, api, tenant")     // 权限验参
-	m.AddDef("g", "g", "_, _")                  // g的参数为user,role
-	m.AddDef("g", "g2", "_, _, _")              // g的参数为api,menu,tenant
+	m.AddDef("r", "r", "sub, typ, obj, tenant, ip") // 权限检验入参
+	m.AddDef("p", "p", "sub, typ, obj, tenant")     // 权限验参
+	m.AddDef("g", "g", "_, _")                      // g的参数为user,role
 	m.AddDef("e", "e", "some(where (p.eft == allow))")
-	m.AddDef("m", "m", "g(r.user, p.user) && g2(r.api, p.api, r.tenant) && r.tenant == p.tenant || r.user == \"1\"") // && BWIpMatch(r.ip)
+	m.AddDef("m", "m", "r.sub == '"+rootUser+"' || g(r.sub, p.sub) && r.typ == p.typ && r.obj == p.obj && r.tenant == p.tenant") // && BWIpMatch(r.ip)
 	return m
 }
 

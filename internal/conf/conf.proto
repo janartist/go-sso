@@ -41,11 +41,11 @@ message Data {
 }
 
 message Casbin {
+  string user_prefix = 1;
+  string role_prefix= 2;
  message Gorm {
    string prefix = 1;
    string table = 2;
-   string user_prefix = 3;
-   string api_prefix= 4;
  }
- Gorm gorm = 1;
+ Gorm gorm = 3;
 }

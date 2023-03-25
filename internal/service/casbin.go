@@ -26,7 +26,7 @@ func (c *CasbinService) AuthorizeMiddleware() middleware.Middleware {
 				if tr.Kind() == transport.KindHTTP {
 					if token, ok := jwt.FromContext(ctx); ok {
 						uid := token.(*generates.JWTAccessClaims).Id
-						ok, err := c.enforcer.AuthorizeFromHttp(uid, tr.(http.Transporter).Request())
+						ok, err := c.enforcer.AuthorizeUserApiFromHttp(uid, tr.(http.Transporter).Request())
 						if ok && err == nil {
 							return handler(ctx, req)
 						}

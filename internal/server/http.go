@@ -9,7 +9,6 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/logging"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
-	"github.com/go-kratos/kratos/v2/middleware/selector"
 	"github.com/go-kratos/kratos/v2/middleware/tracing"
 	"github.com/go-kratos/kratos/v2/transport/http"
 )
@@ -21,9 +20,9 @@ func NewHTTPServer(c *conf.Server, auth *service.AuthService, sso *service.SSOSe
 			recovery.Recovery(),
 			tracing.Server(),
 			logging.Server(logger),
-			selector.Server(auth.TokenMiddleware(), casbin.AuthorizeMiddleware()).
-				Prefix("/api.sso").
-				Build(),
+			//selector.Server(auth.TokenMiddleware(), casbin.AuthorizeMiddleware()).
+			//	Prefix("/api.sso").
+			//	Build(),
 		),
 	}
 	if c.Http.Network != "" {

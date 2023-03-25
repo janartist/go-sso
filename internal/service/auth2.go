@@ -44,13 +44,13 @@ func (a *AuthService) Verify(ctx context.Context, request *v1.VerifyRequest) (*v
 	_, errs := middleware.Chain(a.JwtServerMiddleware(request.GetVerifyBody().GetAccessToken()))(func(ctx context.Context, req interface{}) (interface{}, error) {
 		if token, ok2 := jwt.FromContext(ctx); ok2 {
 			claims = token.(*generates.JWTAccessClaims)
-			ok, err = a.enforcer.Authorize(
-				claims.Id,
-				request.GetVerifyBody().GetApiUrl(),
-				request.GetVerifyBody().GetTenant(),
-				request.GetVerifyBody().GetClientIp(),
-			)
-			return nil, err
+			//ok, err = a.enforcer.Authorize(
+			//	claims.Id,
+			//	request.GetVerifyBody().GetApiUrl(),
+			//	request.GetVerifyBody().GetTenant(),
+			//	request.GetVerifyBody().GetClientIp(),
+			//)
+			//return nil, err
 		}
 		return nil, nil
 	})(ctx, request)

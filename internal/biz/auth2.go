@@ -85,7 +85,7 @@ func NewOauth2Server(redisClient *redis.Client, clientStore oauth2.ClientStore, 
 		allowed = true
 		return
 	})
-	//
+	// code授权返回用户ID
 	srv.SetUserAuthorizationHandler(func(w http.ResponseWriter, r *http.Request) (userID string, err error) {
 		return "11s", nil
 	})
