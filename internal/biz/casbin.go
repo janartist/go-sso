@@ -58,25 +58,25 @@ func NewEnforcer(c *Casbin, m model.Model) (*Enforcer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create casbin enforcer: %v", err)
 	}
-	// enforcer.AddFunction("BWIpMatch", c.BWIpMatch)
+	enforcer.AddFunction("BWIpMatch", c.BWIpMatch)
+	enforcer.AddFunction("ObjMatch", c.ObjMatch)
 	enforcer.SetWatcher(c.watcher)
 	return &Enforcer{enforcer, m, c}, nil
 }
 
-// Authorize casbin 统一鉴权
-// Authorize determines if current user has been authorized to take an action on an apiect.
-func (enforcer *Enforcer) Authorize(sub string, tpy CasbinObjType, obj string, domain, clientIP string) (bool, error) {
+// Authorize casbin api鉴权
+func (enforcer *Enforcer) Authorize(sub string, typ CasbinObjType, obj, act, domain, clientIP string) (bool, error) {
 	// Load policy from Database
 	err := enforcer.e.LoadPolicy()
 	if err != nil {
 		return false, v1.ErrorContentMissing("LoadPolicy error")
 	}
-
 	// Casbin enforces policy
 	ok, err := enforcer.e.Enforce(
 		sub,
-		string(tpy),
+		string(typ),
 		obj,
+		act,
 		domain,
 		clientIP,
 	)
@@ -85,6 +85,7 @@ func (enforcer *Enforcer) Authorize(sub string, tpy CasbinObjType, obj string, d
 	}
 	return true, nil
 }
+
 func (enforcer *Enforcer) AuthorizeUserApiFromHttp(uid string, r *http.Request) (bool, error) {
 	// Extract client IP address from request headers
 	clientIP := r.Header.Get("X-Forwarded-For")
@@ -93,10 +94,9 @@ func (enforcer *Enforcer) AuthorizeUserApiFromHttp(uid string, r *http.Request) 
 	}
 	var (
 		user   = enforcer.casbin.c.GetUserPrefix() + uid
-		api    = r.URL.Path + ":" + r.Method
 		domain = r.Form.Get("client_id")
 	)
-	return enforcer.Authorize(user, CasbinObjTypeApi, api, domain, clientIP)
+	return enforcer.Authorize(user, CasbinObjTypeApi, r.URL.Path, r.Method, domain, clientIP)
 }
 
 // Rbac权限相关
@@ -110,33 +110,24 @@ func (enforcer *Enforcer) DeleteRoleForUserWithPrefix(user, role string) (bool, 
 		enforcer.casbin.c.GetRolePrefix()+role)
 }
 
-func (enforcer *Enforcer) AddPermissionForUserWithPrefix(user string, typ CasbinObjType, obj, tenant string) (bool, error) {
-	return enforcer.e.AddPermissionForUser(
-		enforcer.casbin.c.GetUserPrefix()+user,
-		string(typ), obj, tenant)
-}
-
-func (enforcer *Enforcer) DeletePermissionForUserWithPrefix(user string, typ CasbinObjType, obj, tenant string) (bool, error) {
-	return enforcer.e.DeletePermissionForUser(
-		enforcer.casbin.c.GetUserPrefix()+user,
-		string(typ), obj, tenant)
-}
-
-func (enforcer *Enforcer) AddPermissionForRoleWithPrefix(role string, typ CasbinObjType, obj, tenant string) (bool, error) {
-	return enforcer.e.AddPermissionForUser(
+func (enforcer *Enforcer) AddObjPermissionForRoleWithPrefix(role string, typ CasbinObjType, obj, act, tenant string) (bool, error) {
+	return enforcer.e.AddNamedPolicy(
+		"p",
 		enforcer.casbin.c.GetRolePrefix()+role,
-		string(typ), obj, tenant)
+		string(typ), obj, act, tenant)
 }
 
-func (enforcer *Enforcer) DeletePermissionForRoleWithPrefix(role string, typ CasbinObjType, obj, tenant string) (bool, error) {
-	return enforcer.e.DeletePermissionForUser(
+func (enforcer *Enforcer) DeleteObjPermissionForRoleWithPrefix(role string, typ CasbinObjType, obj, act, tenant string) (bool, error) {
+	return enforcer.e.RemoveNamedPolicy(
+		"p",
 		enforcer.casbin.c.GetRolePrefix()+role,
-		string(typ), obj, tenant)
+		string(typ), obj, act, tenant)
 }
 
 // BWIpMatch 支持黑白名单的ip验证
 //ipMatch("192.168.2.1", "192.168.2.0/24", true)
 func (c *Casbin) BWIpMatch(args ...interface{}) (interface{}, error) {
+	return true, nil
 	rIp := args[0].(string)
 	ok := false
 	var ips = []string{"127.0.0.1"}
@@ -161,28 +152,47 @@ func (c *Casbin) BWIpMatch(args ...interface{}) (interface{}, error) {
 	return false, nil
 }
 
+// ObjMatch("api", "/url/id/:id", "/url/id/1", "(GET)|(POST)", "POST")
+// ObjMatch("menu", "menu1", "menu1", "", "")
+func (c *Casbin) ObjMatch(args ...interface{}) (interface{}, error) {
+	if args[0].(string) == string(CasbinObjTypeApi) {
+		return util.KeyMatch2(
+			args[1].(string), args[2].(string)) && util.RegexMatch(args[3].(string), args[4].(string)), nil
+	}
+	return args[1].(string) == args[2].(string) && args[3].(string) == args[4].(string), nil
+}
+
 // g为user->role的group
 // g2为api->menu的group
 func RABCModelWithIpMatch(c *conf.Casbin) model.Model {
 	rootUser := fmt.Sprintf("%s%d", c.GetUserPrefix(), 1)
 	m := model.NewModel()
-	m.AddDef("r", "r", "sub, typ, obj, tenant, ip") // 权限检验入参
-	m.AddDef("p", "p", "sub, typ, obj, tenant")     // 权限验参
-	m.AddDef("g", "g", "_, _")                      // g的参数为user,role
+	m.AddDef("g", "g", "_, _") // g的参数为user,role
 	m.AddDef("e", "e", "some(where (p.eft == allow))")
-	m.AddDef("m", "m", "r.sub == '"+rootUser+"' || g(r.sub, p.sub) && r.typ == p.typ && r.obj == p.obj && r.tenant == p.tenant") // && BWIpMatch(r.ip)
+	m.AddDef("r", "r", "sub, typ, obj, act, tenant, ip") // 权限检验入参
+	m.AddDef("p", "p", "sub, typ, obj, act, tenant")     // 权限验参
+	m.AddDef("m", "m", "r.sub == '"+rootUser+"' || g(r.sub, p.sub) && r.typ == p.typ && ObjMatch(r.typ, r.obj, p.obj, r.act, p.act) && r.tenant == p.tenant && BWIpMatch(r.ip)")
 	return m
 }
 
-func NewCasbinWatcherEx() *CasbinWatcherEx {
-	return &CasbinWatcherEx{}
+type WatcherObjHandle interface {
+	PolicyObjUpdateOrAdd(sub, typ, obj, act, domain string) error
+	PolicyRoleUpdateOrAdd(user, role string) error
+	PolicyObjRemove(sub, typ, obj, act, domain string) error
+	PolicyRoleRemove(user, role string) error
+}
+
+func NewCasbinWatcherEx(handle WatcherObjHandle) *CasbinWatcherEx {
+	return &CasbinWatcherEx{handle: handle}
 }
 
 type CasbinWatcherEx struct {
 	callback func(string)
+	handle   WatcherObjHandle
 }
 
 func (w *CasbinWatcherEx) Close() {
+
 }
 
 func (w *CasbinWatcherEx) SetUpdateCallback(callback func(string)) error {
@@ -198,10 +208,56 @@ func (w *CasbinWatcherEx) Update() error {
 }
 
 func (w CasbinWatcherEx) UpdateForAddPolicy(sec, ptype string, params ...string) error {
+	fmt.Print("watch UpdateForAddPolicy", sec, ptype, params, "\n")
+	if sec == "p" {
+		if len(params) == 5 {
+			return w.handle.PolicyObjUpdateOrAdd(params[0], params[1], params[2], params[3], params[4])
+		}
+	}
+	if sec == "g" {
+		if len(params) == 2 {
+			return w.handle.PolicyRoleUpdateOrAdd(params[0], params[1])
+		}
+	}
 	return nil
 }
 func (w CasbinWatcherEx) UpdateForRemovePolicy(sec, ptype string, params ...string) error {
+	fmt.Print("watch UpdateForRemovePolicy", sec, ptype, params, "\n")
+	if sec == "p" {
+		if len(params) == 5 {
+			return w.handle.PolicyObjRemove(params[0], params[1], params[2], params[3], params[4])
+		}
+	}
+	if sec == "g" {
+		if len(params) == 2 {
+			return w.handle.PolicyRoleRemove(params[0], params[1])
+		}
+	}
 	return nil
+}
+
+func (w CasbinWatcherEx) UpdateForAddPolicies(sec string, ptype string, rules ...[]string) error {
+	fmt.Print("watch UpdateForAddPolicies", sec, ptype, rules, "\n")
+	var err error
+	for _, rule := range rules {
+		err = w.UpdateForAddPolicy(sec, ptype, rule...)
+		if err != nil {
+			return err
+		}
+	}
+	return err
+}
+
+func (w CasbinWatcherEx) UpdateForRemovePolicies(sec string, ptype string, rules ...[]string) error {
+	fmt.Print("watch UpdateForRemovePolicies", sec, ptype, rules, "\n")
+	var err error
+	for _, rule := range rules {
+		err = w.UpdateForRemovePolicy(sec, ptype, rule...)
+		if err != nil {
+			return err
+		}
+	}
+	return err
 }
 
 func (w CasbinWatcherEx) UpdateForRemoveFilteredPolicy(sec, ptype string, fieldIndex int, fieldValues ...string) error {
@@ -209,13 +265,5 @@ func (w CasbinWatcherEx) UpdateForRemoveFilteredPolicy(sec, ptype string, fieldI
 }
 
 func (w CasbinWatcherEx) UpdateForSavePolicy(model model.Model) error {
-	return nil
-}
-
-func (w CasbinWatcherEx) UpdateForAddPolicies(sec string, ptype string, rules ...[]string) error {
-	return nil
-}
-
-func (w CasbinWatcherEx) UpdateForRemovePolicies(sec string, ptype string, rules ...[]string) error {
 	return nil
 }
